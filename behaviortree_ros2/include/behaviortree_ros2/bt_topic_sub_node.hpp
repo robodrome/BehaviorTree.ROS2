@@ -18,8 +18,8 @@
 #include <string>
 #include <rclcpp/executors.hpp>
 #include <rclcpp/allocator/allocator_common.hpp>
-#include "behaviortree_cpp/condition_node.h"
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/condition_node.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 
 #include "behaviortree_ros2/ros_node_params.hpp"
 #include <boost/signals2.hpp>
@@ -91,7 +91,7 @@ class RosTopicSubNode : public BT::ConditionNode
    * Note that if the external_action_client is not set, the constructor will build its own.
    * */
   explicit RosTopicSubNode(const std::string & instance_name,
-                           const BT::NodeConfig& conf,
+                           const BT::NodeConfiguration& conf,
                            const RosNodeParams& params);
 
   virtual ~RosTopicSubNode() = default;
@@ -142,7 +142,7 @@ private:
 
 template<class T> inline
   RosTopicSubNode<T>::RosTopicSubNode(const std::string & instance_name,
-                                      const NodeConfig &conf,
+                                      const NodeConfiguration &conf,
                                       const RosNodeParams& params)
     : BT::ConditionNode(instance_name, conf),
       node_(params.nh)
@@ -253,7 +253,7 @@ template<class T> inline
 
   auto CheckStatus = [](NodeStatus status)
   {
-    if( !isStatusCompleted(status) )
+    if( !StatusCompleted(status) )
     {
       throw std::logic_error("RosTopicSubNode: the callback must return" 
                              "either SUCCESS or FAILURE");

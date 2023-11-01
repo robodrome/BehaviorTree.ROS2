@@ -18,8 +18,8 @@
 #include <string>
 #include <rclcpp/executors.hpp>
 #include <rclcpp/allocator/allocator_common.hpp>
-#include "behaviortree_cpp/condition_node.h"
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/condition_node.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 #include "behaviortree_ros2/ros_node_params.hpp"
 
 namespace BT
@@ -45,7 +45,7 @@ public:
    * Note that if the external_action_client is not set, the constructor will build its own.
    * */
   explicit RosTopicPubNode(const std::string & instance_name,
-                           const BT::NodeConfig& conf,
+                           const BT::NodeConfiguration& conf,
                            const RosNodeParams& params);
 
   virtual ~RosTopicPubNode() = default;
@@ -106,7 +106,7 @@ private:
 
 template<class T> inline
   RosTopicPubNode<T>::RosTopicPubNode(const std::string & instance_name,
-                                      const NodeConfig &conf,
+                                      const NodeConfiguration &conf,
                                       const RosNodeParams& params)
   : BT::ConditionNode(instance_name, conf),
   node_(params.nh)

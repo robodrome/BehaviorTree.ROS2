@@ -19,8 +19,8 @@
 #include <string>
 #include <rclcpp/executors.hpp>
 #include <rclcpp/allocator/allocator_common.hpp>
-#include "behaviortree_cpp/action_node.h"
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/action_node.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 #include "rclcpp_action/rclcpp_action.hpp"
 
 #include "behaviortree_ros2/ros_node_params.hpp"
@@ -90,7 +90,7 @@ public:
    *
    */
   explicit RosActionNode(const std::string & instance_name,
-                         const BT::NodeConfig& conf,
+                         const BT::NodeConfiguration& conf,
                          const RosNodeParams& params);
 
   virtual ~RosActionNode() = default;
@@ -195,7 +195,7 @@ private:
 
 template<class T> inline
   RosActionNode<T>::RosActionNode(const std::string & instance_name,
-                                  const NodeConfig &conf,
+                                  const NodeConfiguration &conf,
                                   const RosNodeParams &params):
   BT::ActionNodeBase(instance_name, conf),
   node_(params.nh),
@@ -288,7 +288,7 @@ template<class T> inline
   //------------------------------------------
   auto CheckStatus = [](NodeStatus status)
   {
-    if( !isStatusCompleted(status) )
+    if( !StatusCompleted(status) )
     {
       throw std::logic_error("RosActionNode: the callback must return either SUCCESS of FAILURE");
     }
@@ -324,7 +324,7 @@ template<class T> inline
       {
         throw std::logic_error("onFeedback must not return IDLE");
       }
-      emitWakeUpSignal();
+      emitStateChanged();
     };
     //--------------------
     goal_options.result_callback =
@@ -333,7 +333,7 @@ template<class T> inline
       if (goal_handle_->get_goal_id() == result.goal_id) {
         RCLCPP_DEBUG( node_->get_logger(), "result_callback" );
         result_ = result;
-        emitWakeUpSignal();
+        emitStateChanged();
       }
     };
     //--------------------

@@ -16,8 +16,8 @@
 
 #include <filesystem>
 
-#include "behaviortree_cpp/bt_factory.h"
-#include "behaviortree_cpp/utils/shared_library.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp_v3/utils/shared_library.h"
 #include "behaviortree_ros2/ros_node_params.hpp"
 
 
