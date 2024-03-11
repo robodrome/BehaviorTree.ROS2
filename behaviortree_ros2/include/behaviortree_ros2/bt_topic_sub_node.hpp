@@ -45,17 +45,17 @@ namespace BT
 template<class TopicT>
 class RosTopicSubNode : public BT::ConditionNode
 {
- public:
+public:
   // Type definitions
   using Subscriber = typename rclcpp::Subscription<TopicT>;
 
- protected: 
+protected:
   struct SubscriberInstance
   {
-    void init(std::shared_ptr<rclcpp::Node> node, const std::string& topic_name)
+    void init(std::shared_ptr<rclcpp::Node> node, const std::string & topic_name)
     {
       // create a callback group for this particular instance
-      callback_group = 
+      callback_group =
         node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
       callback_group_executor.add_callback_group(
         callback_group, node->get_node_base_interface());
@@ -63,32 +63,39 @@ class RosTopicSubNode : public BT::ConditionNode
       rclcpp::SubscriptionOptions option;
       option.callback_group = callback_group;
 
-    // The callback will broadcast to all the instances of RosTopicSubNode<T>
-      auto callback = [this](const std::shared_ptr<TopicT> msg) 
-      {
-        broadcaster(msg);
-      };
-      subscriber =  node->create_subscription<TopicT>(topic_name, 1, callback, option);
+      // Define custom QoS profile
+      // FOR OTRASSC
+      rclcpp::QoS custom_qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
+      custom_qos.best_effort(); // Set QoS to best effort
+
+      // The callback will broadcast to all the instances of RosTopicSubNode<T>
+      auto callback = [this](const std::shared_ptr<TopicT> msg)
+        {
+          broadcaster(msg);
+        };
+      //subscriber = node->create_subscription<TopicT>(topic_name, 1, callback, option);
+      subscriber = node->create_subscription<TopicT>(topic_name, custom_qos, callback, option);
     }
 
     std::shared_ptr<Subscriber> subscriber;
     rclcpp::CallbackGroup::SharedPtr callback_group;
     rclcpp::executors::SingleThreadedExecutor callback_group_executor;
-    boost::signals2::signal<void (const std::shared_ptr<TopicT>)> broadcaster;
+    boost::signals2::signal<void(const std::shared_ptr<TopicT>)> broadcaster;
 
 
   };
 
-  static std::mutex& registryMutex()
+  static std::mutex & registryMutex()
   {
     static std::mutex sub_mutex;
     return sub_mutex;
   }
 
   // contains the fully-qualified name of the node and the name of the topic
-  static std::unordered_map<std::string, std::shared_ptr<SubscriberInstance>>& getRegistry()
+  static std::unordered_map<std::string, std::shared_ptr<SubscriberInstance>> & getRegistry()
   {
-    static std::unordered_map<std::string, std::shared_ptr<SubscriberInstance>> subscribers_registry;
+    static std::unordered_map<std::string,
+      std::shared_ptr<SubscriberInstance>> subscribers_registry;
     return subscribers_registry;
   }
 
@@ -104,8 +111,7 @@ class RosTopicSubNode : public BT::ConditionNode
     return node_->get_logger();
   }
 
- public:
-
+public:
   /** You are not supposed to instantiate this class directly, the factory will do it.
    * To register this class into the factory, use:
    *
@@ -113,25 +119,24 @@ class RosTopicSubNode : public BT::ConditionNode
    *
    * Note that if the external_action_client is not set, the constructor will build its own.
    * */
-  explicit RosTopicSubNode(const std::string & instance_name,
-                           const BT::NodeConfig& conf,
-                           const RosNodeParams& params);
+  explicit RosTopicSubNode(
+    const std::string & instance_name,
+    const BT::NodeConfig & conf,
+    const RosNodeParams & params);
 
-  virtual ~RosTopicSubNode() 
+  virtual ~RosTopicSubNode()
   {
     signal_connection_.disconnect();
     // remove the subscribers from the static registry when the ALL the
     // instances of RosTopicSubNode are destroyed (i.e., the tree is destroyed)
-    if(sub_instance_)
-    {
+    if (sub_instance_) {
       sub_instance_.reset();
       std::unique_lock lk(registryMutex());
-      auto& registry = getRegistry();
+      auto & registry = getRegistry();
       auto it = registry.find(subscriber_key_);
       // when the reference count is 1, means that the only instance is owned by the
       // registry itself. Delete it
-      if(it != registry.end() && it->second.use_count() <= 1)
-      {
+      if (it != registry.end() && it->second.use_count() <= 1) {
         registry.erase(it);
         RCLCPP_INFO(logger(), "Remove subscriber [%s]", topic_name_.c_str() );
       }
@@ -168,14 +173,13 @@ class RosTopicSubNode : public BT::ConditionNode
    *
    * @param last_msg the latest message received, since the last tick.
    *                  Will be empty if no new message received.
-   * 
+   *
    * @return the new status of the Node, based on last_msg
    */
-  virtual NodeStatus onTick(const std::shared_ptr<TopicT>& last_msg) = 0;
+  virtual NodeStatus onTick(const std::shared_ptr<TopicT> & last_msg) = 0;
 
 private:
-
-  bool createSubscriber(const std::string& topic_name);
+  bool createSubscriber(const std::string & topic_name);
 };
 
 //----------------------------------------------------------------
@@ -183,60 +187,51 @@ private:
 //----------------------------------------------------------------
 
 template<class T> inline
-  RosTopicSubNode<T>::RosTopicSubNode(const std::string & instance_name,
-                                      const NodeConfig &conf,
-                                      const RosNodeParams& params)
-    : BT::ConditionNode(instance_name, conf),
-      node_(params.nh)
-{ 
+RosTopicSubNode<T>::RosTopicSubNode(
+  const std::string & instance_name,
+  const NodeConfig & conf,
+  const RosNodeParams & params)
+: BT::ConditionNode(instance_name, conf),
+  node_(params.nh)
+{
   // check port remapping
   auto portIt = config().input_ports.find("topic_name");
-  if(portIt != config().input_ports.end())
-  {
-    const std::string& bb_topic_name = portIt->second;
+  if (portIt != config().input_ports.end()) {
+    const std::string & bb_topic_name = portIt->second;
 
-    if(bb_topic_name.empty() || bb_topic_name == "__default__placeholder__")
-    {
-      if(params.default_port_value.empty()) {
+    if (bb_topic_name.empty() || bb_topic_name == "__default__placeholder__") {
+      if (params.default_port_value.empty()) {
         throw std::logic_error(
-          "Both [topic_name] in the InputPort and the RosNodeParams are empty.");
-      }
-      else {
+                "Both [topic_name] in the InputPort and the RosNodeParams are empty.");
+      } else {
         createSubscriber(params.default_port_value);
       }
-    }
-    else if(!isBlackboardPointer(bb_topic_name))
-    {
+    } else if (!isBlackboardPointer(bb_topic_name)) {
       // If the content of the port "topic_name" is not
       // a pointer to the blackboard, but a static string, we can
       // create the client in the constructor.
       createSubscriber(bb_topic_name);
-    }
-    else {
+    } else {
       // do nothing
       // createSubscriber will be invoked in the first tick().
     }
-  }
-  else {
-    if(params.default_port_value.empty()) {
+  } else {
+    if (params.default_port_value.empty()) {
       throw std::logic_error(
-        "Both [topic_name] in the InputPort and the RosNodeParams are empty.");
-    }
-    else {
+              "Both [topic_name] in the InputPort and the RosNodeParams are empty.");
+    } else {
       createSubscriber(params.default_port_value);
     }
   }
 }
 
 template<class T> inline
-  bool RosTopicSubNode<T>::createSubscriber(const std::string& topic_name)
+bool RosTopicSubNode<T>::createSubscriber(const std::string & topic_name)
 {
-  if(topic_name.empty())
-  {
+  if (topic_name.empty()) {
     throw RuntimeError("topic_name is empty");
   }
-  if(sub_instance_)
-  {
+  if (sub_instance_) {
     throw RuntimeError("Can't call createSubscriber more than once");
   }
 
@@ -244,26 +239,25 @@ template<class T> inline
   std::unique_lock lk(registryMutex());
   subscriber_key_ = std::string(node_->get_fully_qualified_name()) + "/" + topic_name;
 
-  auto& registry = getRegistry();
+  auto & registry = getRegistry();
   auto it = registry.find(subscriber_key_);
-  if(it == registry.end())
-  {
-    it = registry.insert( {subscriber_key_, std::make_shared<SubscriberInstance>() }).first;
+  if (it == registry.end()) {
+    it = registry.insert({subscriber_key_, std::make_shared<SubscriberInstance>()}).first;
     sub_instance_ = it->second;
     sub_instance_->init(node_, topic_name);
 
-    RCLCPP_INFO(logger(), 
+    RCLCPP_INFO(
+      logger(),
       "Node [%s] created Subscriber to topic [%s]",
       name().c_str(), topic_name.c_str() );
-  }
-  else {
+  } else {
     sub_instance_ = it->second;
   }
 
 
   // add "this" as received of the broadcaster
   signal_connection_ = sub_instance_->broadcaster.connect(
-    [this](const std::shared_ptr<T> msg) { last_msg_ = msg; } );
+    [this](const std::shared_ptr<T> msg) {last_msg_ = msg;});
 
   topic_name_ = topic_name;
   return true;
@@ -271,33 +265,31 @@ template<class T> inline
 
 
 template<class T> inline
-  NodeStatus RosTopicSubNode<T>::tick()
+NodeStatus RosTopicSubNode<T>::tick()
 {
   // First, check if the subscriber_ is valid and that the name of the
   // topic_name in the port didn't change.
   // otherwise, create a new subscriber
-  if(!sub_instance_)
-  {
+  if (!sub_instance_) {
     std::string topic_name;
     getInput("topic_name", topic_name);
-    createSubscriber(topic_name); 
+    createSubscriber(topic_name);
   }
 
   auto CheckStatus = [](NodeStatus status)
-  {
-    if( !isStatusCompleted(status) )
     {
-      throw std::logic_error("RosTopicSubNode: the callback must return" 
-                             "either SUCCESS or FAILURE");
-    }
-    return status;
-  };
+      if (!isStatusCompleted(status) ) {
+        throw std::logic_error(
+                "RosTopicSubNode: the callback must return"
+                "either SUCCESS or FAILURE");
+      }
+      return status;
+    };
   sub_instance_->callback_group_executor.spin_some();
-  auto status = CheckStatus (onTick(last_msg_));
+  auto status = CheckStatus(onTick(last_msg_));
   last_msg_ = nullptr;
 
   return status;
 }
 
 }  // namespace BT
-
